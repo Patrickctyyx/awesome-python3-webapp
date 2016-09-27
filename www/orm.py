@@ -10,7 +10,7 @@ import aiomysql
 def log(sql, args=()):
     logging.info('SQL: %s' % sql)
 
-async def create_pool(loop, **kw):
+async def create_pool(loop, **kw):  # **kw是一个dict参数
     logging.info('create database connection pool...')
     global __pool
     __pool = await aiomysql.create_pool(
@@ -26,11 +26,11 @@ async def create_pool(loop, **kw):
         loop=loop
     )
 
-async def select(sql, args, size=None):
+async def select(sql, args, size=None):  # 查找语句，size是查找元素个数
     log(sql, args)
     global __pool
-    async with __pool.get() as conn:
-        async with conn.cursor(aiomysql.DictCursor) as cur:
+    async with __pool.get() as conn:  # with一般用来处理文件，可以处理异常，关闭文件
+        async with conn.cursor(aiomysql.DictCursor) as cur:  # con,cur都是数据库中的关键词，分别为连接和游标
             await cur.execute(sql.replace('?', '%s'), args or ())
             if size:
                 rs = await cur.fetchmany(size)
@@ -39,7 +39,7 @@ async def select(sql, args, size=None):
         logging.info('rows returned: %s' % len(rs))
         return rs
 
-async def execute(sql, args, autocommit=True):
+async def execute(sql, args, autocommit=True):  # 其他的一些操作都可以用这个
     log(sql)
     async with __pool.get() as conn:
         if not autocommit:
@@ -62,7 +62,7 @@ def create_args_string(num):
         L.append('?')
     return ', '.join(L)
 
-class Field(object):
+class Field(object):  # 相当于flask里面的sqlalchemy
 
     def __init__(self, name, column_type, primary_key, default):
         self.name = name
@@ -73,7 +73,7 @@ class Field(object):
     def __str__(self):
         return '<%s, %s:%s>' % (self.__class__.__name__, self.column_type, self.name)
 
-class StringField(Field):
+class StringField(Field):  # 相当于flask里面的子类，用来限定储存数据元素种类
 
     def __init__(self, name=None, primary_key=False, default=None, ddl='varchar(100)'):
         super().__init__(name, ddl, primary_key, default)
@@ -98,43 +98,46 @@ class TextField(Field):
     def __init__(self, name=None, default=None):
         super().__init__(name, 'text', False, default)
 
-class ModelMetaclass(type):
+class ModelMetaclass(type):  # 元类，用来动态创建类，方便调用者
 
     def __new__(cls, name, bases, attrs):
-        if name=='Model':
+        # name是用户定义的类名
+        # attrs是传入自定义类的参数
+        if name=='Model':  # 防止修改Model类
             return type.__new__(cls, name, bases, attrs)
         tableName = attrs.get('__table__', None) or name
         logging.info('found model: %s (table: %s)' % (name, tableName))
-        mappings = dict()
-        fields = []
+        mappings = dict()  # 储存自定义类的属性与域的对应
+        fields = []  # 储存对应元素的属性
         primaryKey = None
-        for k, v in attrs.items():
+        for k, v in attrs.items():  # v是域,k是属性
             if isinstance(v, Field):
                 logging.info('  found mapping: %s ==> %s' % (k, v))
                 mappings[k] = v
                 if v.primary_key:
                     # 找到主键:
-                    if primaryKey:
+                    if primaryKey:  # 每个属性都要循环到，但只能有一个主键
                         raise StandardError('Duplicate primary key for field: %s' % k)
                     primaryKey = k
                 else:
                     fields.append(k)
-        if not primaryKey:
+        if not primaryKey:  # 必须有主键
             raise StandardError('Primary key not found.')
         for k in mappings.keys():
-            attrs.pop(k)
-        escaped_fields = list(map(lambda f: '`%s`' % f, fields))
+            attrs.pop(k)  # attr储存的是这个类的以规定格式的基本信息
+        escaped_fields = list(map(lambda f: '`%s`' % f, fields))  # map的用法是对于fields的每一个元素，使用前面的lambda
         attrs['__mappings__'] = mappings # 保存属性和列的映射关系
         attrs['__table__'] = tableName
         attrs['__primary_key__'] = primaryKey # 主键属性名
         attrs['__fields__'] = fields # 除主键外的属性名
+        # 每个自定义类都集成了查找插入删除更新等操作
         attrs['__select__'] = 'select `%s`, %s from `%s`' % (primaryKey, ', '.join(escaped_fields), tableName)
         attrs['__insert__'] = 'insert into `%s` (%s, `%s`) values (%s)' % (tableName, ', '.join(escaped_fields), primaryKey, create_args_string(len(escaped_fields) + 1))
         attrs['__update__'] = 'update `%s` set %s where `%s`=?' % (tableName, ', '.join(map(lambda f: '`%s`=?' % (mappings.get(f).name or f), fields)), primaryKey)
         attrs['__delete__'] = 'delete from `%s` where `%s`=?' % (tableName, primaryKey)
         return type.__new__(cls, name, bases, attrs)
 
-class Model(dict, metaclass=ModelMetaclass):
+class Model(dict, metaclass=ModelMetaclass):  # 相当于sqlalchemy中的Model，继承了这个就可以创建自己的数据库类了
 
     def __init__(self, **kw):
         super(Model, self).__init__(**kw)
@@ -164,7 +167,7 @@ class Model(dict, metaclass=ModelMetaclass):
     @classmethod
     async def findAll(cls, where=None, args=None, **kw):
         ' find objects by where clause. '
-        sql = [cls.__select__]
+        sql = [cls.__select__]  # 构造查询语句
         if where:
             sql.append('where')
             sql.append(where)
@@ -185,7 +188,7 @@ class Model(dict, metaclass=ModelMetaclass):
                 args.extend(limit)
             else:
                 raise ValueError('Invalid limit value: %s' % str(limit))
-        rs = await select(' '.join(sql), args)
+        rs = await select(' '.join(sql), args)  # 数据库查询麦序到用到协程
         return [cls(**r) for r in rs]
 
     @classmethod
