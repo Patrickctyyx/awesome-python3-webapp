@@ -10,7 +10,7 @@ import aiomysql
 def log(sql, args=()):
     logging.info('SQL: %s' % sql)
 
-async def create_pool(loop, **kw):  # **kw是一个dict参数
+async def create_pool(loop, **kw):  # **kw是一个dict参数，其实传入的参数并不一定是dict，但是xx=xx,xxx=xxx,这些进来后就会被看作dict(减少了参数)
     logging.info('create database connection pool...')
     global __pool
     __pool = await aiomysql.create_pool(
