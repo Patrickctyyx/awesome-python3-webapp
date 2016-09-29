@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
+"""web框架"""
+
 __author__ = 'Michael Liao'
 
 import asyncio, os, inspect, logging, functools
@@ -16,7 +18,10 @@ def get(path):
     Define decorator @get('/path')
     '''
     def decorator(func):
+        # 这个是用来处理被装饰函数签名的
+        # 比如__name__还有下面的__method__
         @functools.wraps(func)
+        # 两层装饰器是为了加参数，比如@get('/path')
         def wrapper(*args, **kw):
             return func(*args, **kw)
         wrapper.__method__ = 'GET'
@@ -37,34 +42,44 @@ def post(path):
         return wrapper
     return decorator
 
+# 获取函数的值为空的命名关键字参数
 def get_required_kw_args(fn):
     args = []
-    params = inspect.signature(fn).parameters
+    params = inspect.signature(fn).parameters  # 查看函数签名，把参数列表在params里面
     for name, param in params.items():
+        # KEYWORD_ONLY表示命名关键字参数
+        # 判断参数是不是只有命名关键字参数并且默认值为空
+        # 为了获得必须要填写的参数
         if param.kind == inspect.Parameter.KEYWORD_ONLY and param.default == inspect.Parameter.empty:
             args.append(name)
     return tuple(args)
 
+# 获取命名关键字参数
 def get_named_kw_args(fn):
     args = []
     params = inspect.signature(fn).parameters
     for name, param in params.items():
+        # 为了获得所有的命名关键字参数
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             args.append(name)
     return tuple(args)
 
+# 判断是否有命名关键字参数
 def has_named_kw_args(fn):
     params = inspect.signature(fn).parameters
     for name, param in params.items():
         if param.kind == inspect.Parameter.KEYWORD_ONLY:
             return True
 
+# 判断是否有关键字参数
 def has_var_kw_arg(fn):
     params = inspect.signature(fn).parameters
     for name, param in params.items():
+        # VAR_KEYWORD表示关键字参数，匹配**kw
         if param.kind == inspect.Parameter.VAR_KEYWORD:
             return True
 
+# 判断参数里面是不是有请求关键字        
 def has_request_arg(fn):
     sig = inspect.signature(fn)
     params = sig.parameters
@@ -72,11 +87,13 @@ def has_request_arg(fn):
     for name, param in params.items():
         if name == 'request':
             found = True
-            continue
+            continue # 这里跳出本次循环是因为请求参数必须是最后一个，提前跳出就会报错
+        # VAR_POSITIONAL表示可选参数，匹配*args
         if found and (param.kind != inspect.Parameter.VAR_POSITIONAL and param.kind != inspect.Parameter.KEYWORD_ONLY and param.kind != inspect.Parameter.VAR_KEYWORD):
             raise ValueError('request parameter must be the last named parameter in function: %s%s' % (fn.__name__, str(sig)))
     return found
 
+# 这以下还需要继续理解，下面的评论很棒！仔细研究研究！
 class RequestHandler(object):
 
     def __init__(self, app, fn):
@@ -88,6 +105,7 @@ class RequestHandler(object):
         self._named_kw_args = get_named_kw_args(fn)
         self._required_kw_args = get_required_kw_args(fn)
 
+    # __call__()方法是为了让他的实例为函数，比如RequestHandler(app, fn)就相当于调用了函数
     async def __call__(self, request):
         kw = None
         if self._has_var_kw_arg or self._has_named_kw_args or self._required_kw_args:
