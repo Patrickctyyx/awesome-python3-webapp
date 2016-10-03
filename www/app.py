@@ -39,6 +39,8 @@ def init_jinja2(app, **kw):
             env.filters[name] = f
     app['__templating__'] = env
 
+# 以下三个函数为middleware
+# middleware是一种自定义请求处理的强大机制
 async def logger_factory(app, handler):
     async def logger(request):
         logging.info('Request: %s %s' % (request.method, request.path))
@@ -58,10 +60,13 @@ async def data_factory(app, handler):
         return (await handler(request))
     return parse_data
 
+# response这个middleware把返回值转换为web.Response对象再返回，以保证满足aiohttp的要求
 async def response_factory(app, handler):
     async def response(request):
         logging.info('Response handler...')
+        # r是url函数的返回值
         r = await handler(request)
+        # 根据返回值类型来分别处理为web.Response对象
         if isinstance(r, web.StreamResponse):
             return r
         if isinstance(r, bytes):
@@ -110,13 +115,19 @@ def datetime_filter(t):
     return u'%s年%s月%s日' % (dt.year, dt.month, dt.day)
 
 async def init(loop):
+    # 创建连接池，初始数据库
     await orm.create_pool(loop=loop, host='127.0.0.1', port=3306, user='www', password='www', db='awesome')
+    # 注册了应用，以及对应的middlewares
     app = web.Application(loop=loop, middlewares=[
         logger_factory, response_factory
     ])
+    # 初始化jinja2模板
     init_jinja2(app, filters=dict(datetime=datetime_filter))
+    # 注册url处理函数
     add_routes(app, 'handlers')
+    # 注册静态文件路径
     add_static(app)
+    # 创建应用端口主机
     srv = await loop.create_server(app.make_handler(), '127.0.0.1', 9000)
     logging.info('server started at http://127.0.0.1:9000...')
     return srv
