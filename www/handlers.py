@@ -24,6 +24,7 @@ def check_admin(request):
     if request.__user__ is None or not request.__user__.admin:
         raise APIPermissionError()
 
+# 把page页面的字符变成整型数返回
 def get_page_index(page_str):
     p = 1
     try:
@@ -44,6 +45,14 @@ def user2cookie(user, max_age):
     L = [user.id, expires, hashlib.sha1(s.encode('utf-8')).hexdigest()]
     return '-'.join(L)
 
+# 把文字变成html
+# 简直可以去回答python中一行代码可以实现什么丧心病狂的功能了．．．用法真的太高级了
+# 首先filter(f, sequence)对sequence的项目依次执行函数f的内容，正确就加入list(这里是)等返回，f返回值必须是布尔类型
+# 这里是先以行来拆分文本内容变成list，再用filter来判断内容去掉空格后是不是空，返回有效内容的list
+# map(f, sequence)对sequence的项目依次执行函数f的内容,把执行后的结果加入list
+# 这里是把刚才的有效文本中的一些符号用html符号替代并且用p标签包裹最后返回每行的html代码
+# 最后把这些html代码用空格连起来
+# 佩服佩服
 def text2html(text):
     lines = map(lambda s: '<p>%s</p>' % s.replace('&', '&amp;').replace('<', '&lt;').replace('>', '&gt;'), filter(lambda s: s.strip() != '', text.split('\n')))
     return ''.join(lines)
@@ -152,7 +161,7 @@ def manage_blogs(*, page='1'):
         '__template__': 'manage_blogs.html',
         'page_index': get_page_index(page)
     }
-
+１
 @get('/manage/blogs/create')
 def manage_create_blog():
     return {
