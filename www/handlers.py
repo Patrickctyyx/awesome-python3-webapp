@@ -97,6 +97,7 @@ def index(request):
         'blogs': blogs
     }
 
+# 用jinja2来渲染模板，方便数据展示
 @get('/blog/{id}')
 def get_blog(id):
     blog = yield from Blog.find(id)
@@ -110,6 +111,8 @@ def get_blog(id):
         'comments': comments
     }
 
+# 这种注册在这里只用渲染模板
+# 具体功能由前端调用API来实现
 @get('/register')
 def register():
     return {
@@ -159,6 +162,8 @@ def signout(request):
 def manage_blogs(*, page='1'):
     return {
         '__template__': 'manage_blogs.html',
+        # page_index指的是现在要显示的页的信息
+        # 用于页面跳转
         'page_index': get_page_index(page)
     }
 １
@@ -173,6 +178,11 @@ def manage_create_blog():
 _RE_EMAIL = re.compile(r'^[a-z0-9\.\-\_]+\@[a-z0-9\-\_]+(\.[a-z0-9\-\_]+){1,4}$')
 _RE_SHA1 = re.compile(r'^[0-9a-f]{40}$')
 
+# 以下是REST APIs
+# API是在JS中调用的，目的是通过AJAX请求来获得数据
+# 注册用户
+# 前端也有验证和加密密码，后端也有验证加密
+# 前后双重验证保证了万无一失
 @post('/api/users')
 def api_register_user(*, email, name, passwd):
     if not name or not name.strip():
